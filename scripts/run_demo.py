@@ -10,6 +10,7 @@ Steps:
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -24,7 +25,11 @@ logger = logging.getLogger("DemoRunner")
 
 def run_command(cmd: list[str], description: str) -> bool:
     logger.info(f"==> {description}...")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    src_dir = os.path.abspath("src")
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}{os.pathsep}{existing_pp}" if existing_pp else src_dir
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         logger.error(f"Failed: {description}\n{result.stderr or result.stdout}")
         return False

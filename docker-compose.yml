@@ -78,10 +78,10 @@ services:
       "
 
   # ==========================================
-  # 4. Apache Iceberg REST Catalog
+  # 4. Apache Iceberg REST Catalog (Format Version 3 Supported)
   # ==========================================
   iceberg-rest:
-    image: tabulario/iceberg-rest:0.8.0
+    image: apache/iceberg-rest-fixture:latest
     container_name: iceberg-rest
     ports:
       - "8181:8181"
@@ -100,7 +100,7 @@ services:
         condition: service_completed_successfully
 
   # ==========================================
-  # 5. Spark Runtime Container (PySpark + Iceberg + Kafka)
+  # 5. Spark Runtime Container (PySpark 4.1.3 + Iceberg 1.12.0 + Kafka)
   # ==========================================
   spark:
     build:
@@ -111,7 +111,7 @@ services:
       - "4040:4040"  # Spark Driver Web UI
     environment:
       - SPARK_HOME=/opt/spark
-      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip:/opt/spark/work-dir/src
+      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.9-src.zip:/opt/spark/work-dir/src
       - SPARK_NO_DAEMONIZE=true
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password123
