@@ -1,6 +1,6 @@
 # Real-Time Fraud & Anomaly Detection with Spark Structured Streaming & Apache Iceberg
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Spark](https://img.shields.io/badge/Apache%20Spark-Structured%20Streaming-orange.svg)](https://spark.apache.org/)
 [![Iceberg](https://img.shields.io/badge/Apache%20Iceberg-Lakehouse-blue.svg)](https://iceberg.apache.org/)
 [![Kafka](https://img.shields.io/badge/Apache%20Kafka-KRaft-black.svg)](https://kafka.apache.org/)
