@@ -124,24 +124,6 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
     """)
     logger.info("  [+] Gold table: lakehouse.fraud_detection.gold_fraud_alerts initialized.")
 
-    # 5. Dead-Letter Queue (DLQ) Table (Quarantined corrupted/malformed events)
-    spark.sql("""
-        CREATE TABLE IF NOT EXISTS lakehouse.fraud_detection.quarantine_dlq (
-            dlq_id STRING,
-            raw_payload STRING,
-            error_reason STRING,
-            kafka_offset BIGINT,
-            quarantined_at TIMESTAMP
-        )
-        USING iceberg
-        PARTITIONED BY (days(quarantined_at))
-        TBLPROPERTIES (
-            'write.format.default' = 'parquet',
-            'write.parquet.compression-codec' = 'snappy'
-        )
-    """)
-    logger.info("  [+] Quarantine DLQ table: lakehouse.fraud_detection.quarantine_dlq initialized.")
-
 
 if __name__ == "__main__":
     from lakehouse.spark_session import get_spark_session
