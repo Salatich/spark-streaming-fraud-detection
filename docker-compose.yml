@@ -78,10 +78,10 @@ services:
       "
 
   # ==========================================
-  # 4. Apache Iceberg REST Catalog
+  # 4. Apache Iceberg REST Catalog (Format Version 3 Supported)
   # ==========================================
   iceberg-rest:
-    image: tabulario/iceberg-rest:0.8.0
+    image: apache/iceberg-rest-fixture:latest
     container_name: iceberg-rest
     ports:
       - "8181:8181"

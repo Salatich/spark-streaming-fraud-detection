@@ -44,7 +44,7 @@ TRANSACTION_PAYLOAD_SCHEMA = StructType(
 
 
 def initialize_iceberg_tables(spark: SparkSession) -> None:
-    """Create namespace and Medallion Iceberg V2 format tables if they do not exist."""
+    """Create namespace and Medallion Iceberg V3 format tables if they do not exist."""
     logger.info("Initializing Iceberg tables in catalog 'lakehouse'...")
 
     # 1. Namespace
@@ -64,12 +64,12 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
         USING iceberg
         PARTITIONED BY (days(ingestion_time))
         TBLPROPERTIES (
-            'format-version' = '2',
+            'format-version' = '3',
             'write.format.default' = 'parquet',
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Bronze table: lakehouse.fraud_detection.bronze_transactions (V2) initialized.")
+    logger.info("  [+] Bronze table: lakehouse.fraud_detection.bronze_transactions (V3) initialized.")
 
     # 3. Silver Table (Cleaned, validated, strongly typed, deduplicated)
     spark.sql("""
@@ -93,12 +93,12 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
         USING iceberg
         PARTITIONED BY (days(event_time))
         TBLPROPERTIES (
-            'format-version' = '2',
+            'format-version' = '3',
             'write.format.default' = 'parquet',
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Silver table: lakehouse.fraud_detection.silver_transactions (V2) initialized.")
+    logger.info("  [+] Silver table: lakehouse.fraud_detection.silver_transactions (V3) initialized.")
 
     # 4. Gold Table (Enriched fraud incidents and compliance audit store)
     spark.sql("""
@@ -120,12 +120,12 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
         USING iceberg
         PARTITIONED BY (days(detected_at))
         TBLPROPERTIES (
-            'format-version' = '2',
+            'format-version' = '3',
             'write.format.default' = 'parquet',
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Gold table: lakehouse.fraud_detection.gold_fraud_alerts (V2) initialized.")
+    logger.info("  [+] Gold table: lakehouse.fraud_detection.gold_fraud_alerts (V3) initialized.")
 
 
 if __name__ == "__main__":

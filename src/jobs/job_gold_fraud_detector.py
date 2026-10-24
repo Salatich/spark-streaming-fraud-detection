@@ -236,7 +236,11 @@ class FraudDetectionEngine:
         a = pow(sin(dlat / 2.0), 2) + cos(lat1) * cos(lat2) * pow(sin(dlon / 2.0), 2)
         c = 2.0 * asin(sqrt(a))
         distance_km = lit(6371.0) * c
-        speed_kmh = distance_km / (time_delta_sec / 3600.0)
+        # Spark 4.1 ANSI-safe speed calculation avoiding divide-by-zero on concurrent/prior timestamps
+        speed_kmh = when(
+            col("prev_lat").isNotNull() & (time_delta_sec > 0),
+            distance_km / (time_delta_sec / 3600.0),
+        ).otherwise(lit(0.0))
 
         # Rule 1: Impossible Travel (speed > 800 km/h and distance > 500 km)
         is_impossible_travel = (
