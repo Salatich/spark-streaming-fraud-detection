@@ -38,11 +38,13 @@ def get_spark_session(app_name: str = "spark-streaming-engine") -> SparkSession:
             "spark.hadoop.fs.s3a.aws.credentials.provider",
             "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
         )
-        # Structured Streaming checkpoint & RocksDB state store settings
+        # Structured Streaming checkpoint & state store settings
         .config(
             "spark.sql.streaming.stateStore.providerClass",
             "org.apache.spark.sql.execution.streaming.state.HDFSBackedStateStoreProvider",
         )
+        # Spark 4.1 streaming optimization: suppress redundant empty micro-batches
+        .config("spark.sql.streaming.noDataMicroBatches.enabled", "false")
         # Tuning shuffle partitions for local streaming micro-batches
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.default.parallelism", "4")
