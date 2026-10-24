@@ -204,6 +204,7 @@ def run_pipeline(once: bool = False):
         for q in active_queries:
             q.awaitTermination()
         logger.info("All pending batches processed successfully.")
+        spark.stop()
     else:
         logger.info("Awaiting termination on all active streaming queries...")
         spark.streams.awaitAnyTermination()

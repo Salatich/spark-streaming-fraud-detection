@@ -1,13 +1,13 @@
 # Real-Time Fraud & Anomaly Detection Lakehouse
 
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
-[![Apache Spark 3.5.3](https://img.shields.io/badge/Apache%20Spark-3.5.3%20Structured%20Streaming-orange.svg)](https://spark.apache.org/)
-[![Apache Iceberg 1.6.1](https://img.shields.io/badge/Apache%20Iceberg-1.6.1%20Lakehouse-blue.svg)](https://iceberg.apache.org/)
+[![Apache Spark 4.1.3](https://img.shields.io/badge/Apache%20Spark-4.1.3%20Structured%20Streaming-orange.svg)](https://spark.apache.org/)
+[![Apache Iceberg 1.12.0](https://img.shields.io/badge/Apache%20Iceberg-1.12.0%20(Format%20V3)-blue.svg)](https://iceberg.apache.org/)
 [![Apache Kafka 3.8.0](https://img.shields.io/badge/Apache%20Kafka-3.8.0%20KRaft-black.svg)](https://kafka.apache.org/)
 [![uv](https://img.shields.io/badge/Package%20Manager-uv-purple.svg)](https://github.com/astral-sh/uv)
 [![Tests Passing](https://img.shields.io/badge/Tests-15%2F15%20Passing-brightgreen.svg)](tests/)
 
-A production-grade streaming platform designed to demonstrate advanced **Spark Structured Streaming**, **Apache Iceberg**, and **Medallion Lakehouse Architecture**.
+A production-grade streaming platform demonstrating modern **Apache Spark 4.1.3 Structured Streaming**, **Apache Iceberg 1.12.0 Format Version 3 (v3)**, and **Medallion Lakehouse Architecture**.
 
 ---
 
@@ -16,7 +16,7 @@ A production-grade streaming platform designed to demonstrate advanced **Spark S
 ```mermaid
 flowchart TD
     subgraph Ingestion ["1. Data Generation"]
-        Gen["Chaos Transaction Generator<br/>(producer.py)"]
+        Gen["Chaos Transaction Generator<br/>(producer.py: 100 EPS)"]
     end
 
     subgraph KafkaCluster ["2. Kafka Event Hub (KRaft)"]
@@ -25,15 +25,15 @@ flowchart TD
         T_ALERTS["Topic: fraud.alerts<br/>(Fast Egress Alerts)"]
     end
 
-    subgraph SparkEngine ["3. Spark Structured Streaming Engine"]
+    subgraph SparkEngine ["3. Spark Structured Streaming Engine (v4.1.3)"]
         J1["Job 1: Bronze-Silver Ingestion<br/>• Watermarking (10m)<br/>• Streaming Dedup<br/>• Schema Validation & DLQ"]
-        J2["Job 2: Gold Stateful Fraud Detector<br/>• Iceberg readStream<br/>• Geo-Velocity (Haversine)<br/>• Atomic Micro-batch Fan-out"]
+        J2["Job 2: Gold Stateful Fraud Detector<br/>• Iceberg readStream (V3)<br/>• Geo-Velocity (Haversine)<br/>• Atomic Micro-batch Fan-out"]
     end
 
-    subgraph IcebergLakehouse ["4. Apache Iceberg Medallion Lakehouse (MinIO S3)"]
-        B_TBL[("Bronze Table<br/>bronze_transactions<br/>(Raw Append Audit)")]
-        S_TBL[("Silver Table<br/>silver_transactions<br/>(Clean & Deduplicated)")]
-        G_TBL[("Gold Table<br/>gold_fraud_alerts<br/>(Compliance & Anomaly Store)")]
+    subgraph IcebergLakehouse ["4. Apache Iceberg Lakehouse (Format Version 3, MinIO S3)"]
+        B_TBL[("Bronze Table<br/>bronze_transactions (v3)<br/>(Raw Append Audit)")]
+        S_TBL[("Silver Table<br/>silver_transactions (v3)<br/>(Clean & Deduplicated)")]
+        G_TBL[("Gold Table<br/>gold_fraud_alerts (v3)<br/>(Compliance & Anomaly Store)")]
     end
 
     subgraph UI ["5. Streamlit Operations Dashboard (4 Tabs)"]
@@ -66,14 +66,38 @@ flowchart TD
 | :--- | :---: | :--- |
 | **Kafka Topics** | **3** | `transactions.raw` (source), `transactions.dlq` (quarantine), `fraud.alerts` (egress alerts) |
 | **Spark Streaming Jobs** | **2** | `job_bronze_silver.py` (Bronze, Silver & DLQ), `job_gold_fraud_detector.py` (Gold & Alerts) |
-| **Iceberg Tables** | **3** | `bronze_transactions`, `silver_transactions`, `gold_fraud_alerts` (MinIO S3 + REST Catalog) |
+| **Iceberg Tables** | **3** | `bronze_transactions`, `silver_transactions`, `gold_fraud_alerts` (**Format Version 3**, MinIO S3 + REST Catalog) |
+| **REST Catalog** | **1** | Official `apache/iceberg-rest-fixture:latest` supporting Iceberg Format Version 3 |
 | **Dashboard** | **1** | Unified Streamlit Web App (4 interactive operational tabs on `:8501`) |
 
 ---
 
-## 💡 Lead Data Engineer Assessment: Streaming Patterns & Interview Runbook
+## 💡 Modernization & Engineering Highlights (Spark 4.1.3 + Iceberg 1.12.0)
 
-This project directly answers critical architectural trade-offs expected of a **Lead Data Engineer / Tech Lead**:
+### 1. Apache Iceberg Format Version 3 (v3) Tables
+- **Table Definition**: Configured with `TBLPROPERTIES ('format-version' = '3')` for all three Medallion tables (`bronze_transactions`, `silver_transactions`, `gold_fraud_alerts`).
+- **REST Catalog Migration**: Replaced archived `tabulario/iceberg-rest` (which rejected v3 with `Unsupported format version: v3 (supported: v2)`) with the official Apache Foundation image **`apache/iceberg-rest-fixture:latest`**.
+- **Capabilities**: Enables Iceberg v3 advanced features including row-level deletes, default values, nanosecond timestamps, and schema evolution.
+
+### 2. PySpark 4.1.3 API Modernizations
+- **ANSI SQL Divide-by-Zero Safety**: Spark 4.1 ANSI mode strictly rejects divisions by zero (`DIVIDE_BY_ZERO` error). The Haversine speed calculation in [`src/jobs/job_gold_fraud_detector.py`](src/jobs/job_gold_fraud_detector.py) uses conditional branching:
+  ```python
+  speed_kmh = when(
+      col("prev_lat").isNotNull() & (time_delta_sec > 0),
+      distance_km / (time_delta_sec / 3600.0),
+  ).otherwise(lit(0.0))
+  ```
+- **Micro-Batch Suppression (`noDataMicroBatches`)**: Configured `spark.sql.streaming.noDataMicroBatches.enabled = false` in [`src/lakehouse/spark_session.py`](src/lakehouse/spark_session.py) to eliminate empty micro-batch execution and reduce S3/MinIO commit pressure.
+- **Hadoop 3.4.2 & AWS SDK v2**: Spark 4.1.3 bundles Hadoop 3.4.2, which utilizes the AWS SDK v2 bundle (`software.amazon.awssdk:bundle:2.29.52.jar` and `hadoop-aws-3.4.2.jar`) instead of obsolete AWS SDK v1 jars.
+
+### 3. Real-Time Mode (RTM) vs. Micro-Batching in Lakehouses
+- **Spark 4.1 Real-Time Mode (`Trigger.RealTime`)**: Evaluated for low-latency operational streams.
+- **Why Lakehouse Tables Use Micro-Batches**: Spark 4.1's `RealTimeModeAllowlist` restricts RTM to Kafka, Memory, and Console sinks, rejecting lakehouse tables (`SparkTable`) with `STREAMING_REAL_TIME_MODE.OPERATOR_OR_SINK_NOT_IN_ALLOWLIST` because sub-millisecond commits create file fragmentation. Therefore, a **5-second micro-batch trigger** is the optimal design pattern for ACID Parquet generation.
+- **Where RTM Excels**: Verified running cleanly for pure Kafka-to-Kafka streams (e.g., dead-letter quarantine and alert forwarding).
+
+---
+
+## 💡 Streaming Patterns & Interview Runbook
 
 ### 1. Watermarking & Late Data Handling
 - **The Challenge**: Streaming data over networks arrives late and out-of-order. Indefinitely caching state leads to executor `OutOfMemoryError`.
@@ -84,24 +108,16 @@ This project directly answers critical architectural trade-offs expected of a **
 - **Implementation**: Bounded deduplication using `.dropDuplicates(["transaction_id", "event_time"])`. By pairing the business primary key with the watermarked event timestamp, Spark retains deduplication keys only within the active 10-minute watermark window, discarding expired keys automatically.
 
 ### 3. Stateful Geo-Velocity Processing (Impossible Travel)
-- **The Challenge**: Calculating distance and speed between consecutive events per user ($T_1 \rightarrow T_2$) across streaming micro-batches without non-time window limitations in Spark Streaming.
+- **The Challenge**: Calculating distance and speed between consecutive events per user across streaming micro-batches.
 - **Implementation**:
-  - **State Warming from Iceberg**: On job startup, [`src/jobs/job_gold_fraud_detector.py`](src/jobs/job_gold_fraud_detector.py) warms an in-memory user cache with the latest known location per user directly from `silver_transactions`.
-  - **Cross-Batch Windowing**: Preceding user states are unioned into the batch with an `is_prior` flag, allowing standard PySpark `lag()` over `Window.partitionBy("user_id").orderBy("event_time")` to evaluate both intra-batch and cross-batch transactions seamlessly.
-  - **Pure PySpark SQL Haversine**: Computed via native Spark SQL mathematical expressions (`radians`, `sin`, `cos`, `asin`), executing directly inside the JVM without Python UDF serialization bottlenecks.
-  - **Anomaly Rule**: Flags transactions exceeding commercial aviation capabilities ($>800\text{ km/h}$ over $>500\text{ km}$).
+  - **State Warming from Iceberg**: On startup, [`src/jobs/job_gold_fraud_detector.py`](src/jobs/job_gold_fraud_detector.py) warms driver cache from the latest known location per user directly from `silver_transactions`.
+  - **Cross-Batch Windowing**: Preceding user states are unioned into the batch with an `is_prior` flag, allowing standard PySpark `lag()` over `Window.partitionBy("user_id").orderBy("event_time")` to evaluate transactions across micro-batch boundaries.
+  - **Pure PySpark SQL Haversine**: Computed via native Spark SQL expressions (`radians`, `sin`, `cos`, `asin`), executing inside the JVM without Python UDF serialization bottlenecks.
+  - **Anomaly Rules**: Flags impossible travel ($>800\text{ km/h}$ over $>500\text{ km}$) and velocity bursts ($\le 60\text{s}$ over $\$200$).
 
-### 4. Dead-Letter Queue (DLQ) Architectural Trade-Off
-- **Trade-off Decision**: Operational Kafka topic (`transactions.dlq`) vs. Analytical Lakehouse table (`quarantine_dlq`).
-- **Resolution**: We write corrupted records and schema violations directly to Kafka topic **`transactions.dlq`**. This enables upstream teams to fix parsing bugs and **replay the DLQ back into the pipeline** without requiring storage mutations or lakehouse rewrites.
-
-### 5. Multi-Sink Atomic Fan-Out (`foreachBatch`)
-- **The Challenge**: Fanning out alerts to both a high-throughput messaging queue (Kafka `fraud.alerts`) and an analytical ACID table (Iceberg `gold_fraud_alerts`) without recomputing the stream twice.
-- **Implementation**: We leverage `writeStream.foreachBatch(...)`. The streaming micro-batch is evaluated once, and the resulting `alerts_df` is written concurrently to Kafka and appended to Iceberg.
-
-### 6. Shuffle Partitions Performance Tuning
-- **The Challenge**: Default Spark configuration sets `spark.sql.shuffle.partitions = 200`. In micro-batch streaming with small batches, 200 tasks create massive task scheduling overhead (~40s micro-batch latency).
-- **Optimization**: Setting `spark.sql.shuffle.partitions = 4` in [`src/lakehouse/spark_session.py`](src/lakehouse/spark_session.py) reduced micro-batch execution latency from **40 seconds down to 2 seconds**!
+### 4. Multi-Sink Atomic Fan-Out (`foreachBatch`)
+- **The Challenge**: Fanning out alerts to both an operational queue (Kafka `fraud.alerts`) and an analytical ACID table (Iceberg `gold_fraud_alerts`) without re-evaluating the stream twice.
+- **Implementation**: `writeStream.foreachBatch(...)` evaluates the micro-batch once and writes concurrently to Kafka and Iceberg.
 
 ---
 
@@ -109,10 +125,10 @@ This project directly answers critical architectural trade-offs expected of a **
 
 The interactive operations dashboard is accessible on `http://localhost:8501`:
 
-- **Tab 1: 🚨 Live Fraud Ops & Map**: Consumes Kafka topic `fraud.alerts`, displays real-time KPI metrics (critical vs. high alerts, prevented financial loss), plots anomaly coordinates on an interactive global map, and streams alert cards.
-- **Tab 2: 💎 Clean Silver Feed**: Queries the Iceberg `silver_transactions` table via PyIceberg, featuring full-text search by User ID, category filtering (travel, groceries, electronics), and volume metrics.
-- **Tab 3: 📊 Fraud Intelligence & Audit**: Compliance audit center pulling historical data from `gold_fraud_alerts`, displaying average fraud amounts, anomaly breakdown charts, and high-risk corridor distributions.
-- **Tab 4: ⚙️ Lakehouse Commits & DLQ**: Real-time lakehouse internals explorer showing Apache Iceberg ACID commit snapshot histories (snapshot ID, timestamps, operations) alongside the Kafka Dead-Letter Queue (`transactions.dlq`) inspector.
+- **Tab 1: 🚨 Live Fraud Ops & Map**: Consumes Kafka topic `fraud.alerts`, displays real-time KPI metrics, plots anomaly coordinates on an interactive global map, and streams alert cards.
+- **Tab 2: 💎 Clean Silver Feed**: Queries Iceberg `silver_transactions` via PyIceberg, featuring category filtering and User ID search.
+- **Tab 3: 📊 Fraud Intelligence & Audit**: Compliance audit center pulling historical data from `gold_fraud_alerts`, displaying average fraud amounts and anomaly charts.
+- **Tab 4: ⚙️ Lakehouse Commits & DLQ**: Real-time lakehouse explorer showing Apache Iceberg ACID commit snapshot histories alongside the Kafka Dead-Letter Queue (`transactions.dlq`) inspector.
 
 ---
 
@@ -134,27 +150,28 @@ uv sync
 
 ### 3. Start Infrastructure
 ```bash
-# Start Kafka, MinIO, Iceberg REST, Kafka UI, and Spark Engine
+# Start Kafka (KRaft), MinIO, Iceberg REST (v3), Kafka UI, and Spark Engine (4.1.3)
 docker compose up -d
 
-# Verify infrastructure health
+# Verify infrastructure connectivity and health
 uv run python scripts/verify_infra.py
 ```
 
 ### 4. Run One-Click End-to-End Demo
-Run the automated end-to-end sandbox script:
+Run the automated end-to-end sandbox runner:
 ```bash
 uv run python scripts/run_demo.py
 ```
 This script automatically:
-1. Emits streaming financial transactions with injected chaos (impossible travel, late arrivals, duplicates, poison pills).
-2. Executes Spark Job 1 (Bronze Ingest, Silver Cleanse & Watermarking, DLQ Routing).
-3. Executes Spark Job 2 (Iceberg streaming read, Geo-Velocity Engine, Dual-Sink Egress).
+1. Emits streaming financial transactions with chaos (impossible travel, late arrivals, duplicates, poison pills).
+2. Executes Spark Job 1 in batch mode (`--once`, Trigger.AvailableNow).
+3. Executes Spark Job 2 in batch mode (`--once`, Trigger.AvailableNow).
 
 ### 5. Launch the Dashboard
 ```bash
 uv run streamlit run src/ui/app.py
 ```
+Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 ---
 
@@ -163,12 +180,11 @@ uv run streamlit run src/ui/app.py
 The repository includes a comprehensive unit test suite covering Pydantic models, chaos generator mechanics, impossible travel physics, and UI metadata helpers.
 
 ```bash
-# Run 15/15 unit tests
+# Run all unit tests (15/15 passing)
 uv run pytest
 
-# Verify code formatting and linting
-uv run ruff check src tests
-uv run ruff format --check src tests
+# Verify code formatting and linting (100% clean)
+uv run ruff check .
 ```
 
 ---
@@ -177,22 +193,22 @@ uv run ruff format --check src tests
 
 ```
 ├── docker/
-│   ├── Dockerfile.spark          # Custom Spark 3.5.3 + Iceberg 1.6.1 + AWS S3 bundles
-│   └── entrypoint.sh             # Spark daemon entrypoint
-├── docker-compose.yml            # Kafka (KRaft), MinIO, Iceberg REST, Kafka UI, Spark Engine
+│   ├── Dockerfile.spark          # Custom Spark 4.1.3 + Iceberg 1.12.0 + AWS SDK v2 bundles
+│   └── entrypoint.sh             # Spark container entrypoint
+├── docker-compose.yml            # Kafka (KRaft), MinIO, Iceberg REST (v3), Kafka UI, Spark Engine
 ├── scripts/
-│   ├── run_demo.py               # One-click end-to-end pipeline demonstration script
+│   ├── run_demo.py               # One-click end-to-end demonstration script
 │   └── verify_infra.py           # Infrastructure health check script
 ├── src/
 │   ├── generator/                # Chaos transaction producer & Haversine geo utilities
 │   │   ├── geo_utils.py          # Great-circle distance calculations & city coordinates
-│   │   └── producer.py           # Synthetic generator with configurable chaos injection
+│   │   └── producer.py           # Synthetic generator with configurable chaos injection (100 EPS)
 │   ├── jobs/                     # Spark Structured Streaming production jobs
 │   │   ├── job_bronze_silver.py  # Bronze ingestion, watermarked dedup, and DLQ routing
 │   │   └── job_gold_fraud_detector.py # Stateful fraud engine with Iceberg readStream & dual-sink
 │   ├── lakehouse/                # Lakehouse table schemas and SparkSession factory
 │   │   ├── spark_session.py      # Pre-configured SparkSession with S3A and Iceberg Catalog
-│   │   └── table_schemas.py      # Iceberg DDL definitions with hidden partitioning
+│   │   └── table_schemas.py      # Iceberg Format Version 3 DDL definitions
 │   ├── models/                   # Pydantic domain models
 │   │   └── transaction.py        # TransactionEvent, FraudAlert, DLQRecord, GeoLocation
 │   └── ui/                       # Streamlit real-time operational dashboard
@@ -204,7 +220,7 @@ uv run ruff format --check src tests
 │   ├── test_gold_fraud_detector.py # Impossible travel & velocity burst physics tests
 │   ├── test_models.py            # Pydantic validation & JSON serialization tests
 │   └── test_ui.py                # Dashboard client & metadata tests
-├── pyproject.toml                # Project metadata & pinned dependencies (Python 3.13)
+├── pyproject.toml                # Project metadata, pinned dependencies & tool settings
 ├── uv.lock                       # Deterministic lockfile
 └── README.md                     # Architecture guide & interview runbook
 ```

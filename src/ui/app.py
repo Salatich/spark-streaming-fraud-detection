@@ -69,7 +69,7 @@ def render_sidebar():
     st.sidebar.metric("Gold Fraud Alerts", f"{counts.get('gold', 0):,}")
 
     st.sidebar.markdown("---")
-    if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
+    if st.sidebar.button("🔄 Refresh Data", width="stretch"):
         st.rerun()
 
     st.sidebar.markdown("### Infrastructure Links")
@@ -143,7 +143,7 @@ def render_tab_live_alerts():
                 "Time Delta (s)": details.get("time_delta_seconds", "N/A"),
             }
         )
-    st.dataframe(pd.DataFrame(alert_rows), use_container_width=True)
+    st.dataframe(pd.DataFrame(alert_rows), width="stretch")
 
 
 def render_tab_silver():
@@ -194,7 +194,7 @@ def render_tab_silver():
                 "event_time",
             ]
         ],
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -231,7 +231,7 @@ def render_tab_gold_audit():
             st.bar_chart(sev_counts)
 
     st.subheader("Full Compliance Audit Log")
-    st.dataframe(gold_df, use_container_width=True)
+    st.dataframe(gold_df, width="stretch")
 
 
 def render_tab_internals_and_dlq():
@@ -248,7 +248,7 @@ def render_tab_internals_and_dlq():
         )
         snapshots = get_table_snapshots(selected_tbl)
         if snapshots:
-            st.dataframe(pd.DataFrame(snapshots), use_container_width=True)
+            st.dataframe(pd.DataFrame(snapshots), width="stretch")
         else:
             st.info(f"No snapshots found for table '{selected_tbl}'.")
 
@@ -259,7 +259,7 @@ def render_tab_internals_and_dlq():
         dlq_records = consume_recent_messages("transactions.dlq", max_messages=50)
         if dlq_records:
             st.warning(f"Found {len(dlq_records)} quarantined records in `transactions.dlq`.")
-            st.dataframe(pd.DataFrame(dlq_records), use_container_width=True)
+            st.dataframe(pd.DataFrame(dlq_records), width="stretch")
         else:
             st.success("No corrupted records found in DLQ.")
 
