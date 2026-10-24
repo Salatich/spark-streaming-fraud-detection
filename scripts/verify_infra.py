@@ -2,8 +2,8 @@
 
 import json
 import sys
-import time
 import urllib.request
+
 from confluent_kafka.admin import AdminClient, NewTopic
 
 
@@ -69,7 +69,7 @@ def main():
     print("=" * 60)
     print("      INFRASTRUCTURE SANITY & HEALTH CHECK")
     print("=" * 60)
-    
+
     kafka_ok = check_kafka()
     minio_ok = check_minio()
     iceberg_ok = check_iceberg_rest()
