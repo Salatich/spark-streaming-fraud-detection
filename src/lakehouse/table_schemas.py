@@ -69,7 +69,7 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Bronze table: lakehouse.fraud_detection.bronze_transactions (V3) initialized.")
+    logger.info("  [+] Bronze table: lakehouse.fraud_detection.bronze_transactions initialized.")
 
     # 3. Silver Table (Cleaned, validated, strongly typed, deduplicated)
     spark.sql("""
@@ -98,7 +98,7 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Silver table: lakehouse.fraud_detection.silver_transactions (V3) initialized.")
+    logger.info("  [+] Silver table: lakehouse.fraud_detection.silver_transactions initialized.")
 
     # 4. Gold Table (Enriched fraud incidents and compliance audit store)
     spark.sql("""
@@ -125,7 +125,7 @@ def initialize_iceberg_tables(spark: SparkSession) -> None:
             'write.parquet.compression-codec' = 'snappy'
         )
     """)
-    logger.info("  [+] Gold table: lakehouse.fraud_detection.gold_fraud_alerts (V3) initialized.")
+    logger.info("  [+] Gold table: lakehouse.fraud_detection.gold_fraud_alerts initialized.")
 
 
 if __name__ == "__main__":
