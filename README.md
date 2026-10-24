@@ -69,15 +69,15 @@ This repository addresses core streaming design challenges in modern enterprise 
 ## 📦 Project Structure
 
 ```
-├── .github/                 # CI/CD Workflows
-├── docker/                  # Docker Compose (Kafka, Spark, Iceberg REST, MinIO)
+├── docker/                  # Docker assets (Dockerfile.spark, etc.)
+├── docker-compose.yml       # Kafka, MinIO, Iceberg REST, Kafka UI, Spark Engine
+├── scripts/                 # Infra verification & operational scripts
 ├── src/
-│   └── spark_streaming/
-│       ├── generator/       # High-fidelity chaos transaction producer
-│       ├── jobs/            # Spark Structured Streaming jobs (Bronze, Silver, Gold)
-│       ├── lakehouse/       # Iceberg table schemas and maintenance utils
-│       ├── models/          # Pydantic schemas and event definitions
-│       └── ui/              # Streamlit live operational dashboard
+│   ├── generator/           # High-fidelity chaos transaction producer
+│   ├── jobs/                # Spark Structured Streaming jobs (Bronze, Silver, Gold)
+│   ├── lakehouse/           # Iceberg catalog, SparkSession factory, and table schemas
+│   ├── models/              # Pydantic schemas and event definitions
+│   └── ui/                  # Streamlit live operational dashboard
 ├── tests/                   # Unit & Streaming integration tests
 ├── pyproject.toml           # Project dependencies managed by uv
 ├── uv.lock                  # Pinned deterministic lockfile
@@ -95,7 +95,7 @@ This repository addresses core streaming design challenges in modern enterprise 
 ### 1. Environment Setup
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/Salatich/spark-streaming-fraud-detection.git
 cd spark-streaming
 
 # Install dependencies via uv
@@ -105,13 +105,16 @@ uv sync
 ### 2. Launch Local Streaming Infrastructure (Docker)
 ```bash
 docker compose up -d
+
+# Verify all services are online and Kafka topics are created
+uv run python scripts/verify_infra.py
 ```
 
 ### 3. Run Producer & Streaming Jobs
 ```bash
 # Start transaction generator
-uv run python -m spark_streaming.generator.producer --rate 20
+uv run python -m generator.producer --rate 20
 
 # Run Streamlit Live Dashboard
-uv run streamlit run src/spark_streaming/ui/app.py
+uv run streamlit run src/ui/app.py
 ```
