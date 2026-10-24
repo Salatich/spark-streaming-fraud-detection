@@ -1,4 +1,4 @@
-"""Spark Structured Streaming Job 1: Ingestion (Bronze) and Cleansing & Deduplication (Silver)."""
+"""Spark Streaming Job 1: Ingestion (Bronze), Cleansing (Silver), and DLQ (Kafka)."""
 
 from __future__ import annotations
 
@@ -9,9 +9,10 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import (
     col,
     current_timestamp,
-    expr,
     from_json,
     lit,
+    struct,
+    to_json,
 )
 from pyspark.sql.streaming import StreamingQueryListener
 
@@ -85,26 +86,31 @@ def build_bronze_stream(
 
 
 def process_silver_and_dlq(bronze_df: DataFrame) -> tuple[DataFrame, DataFrame]:
-    """Parse JSON, filter malformed/invalid records to DLQ, and deduplicate with watermarking."""
+    """Parse JSON, filter malformed records to Kafka DLQ, and deduplicate with watermarking."""
     parsed_df = bronze_df.withColumn(
         "parsed",
         from_json(col("raw_payload"), TRANSACTION_PAYLOAD_SCHEMA),
     )
 
-    # 1. Quarantine filter (Dead-Letter Queue condition)
-    # Malformed if parsed struct is null, or transaction_id is missing, or amount <= 0
+    # 1. Dead-Letter Queue (DLQ) condition: unparseable JSON, missing ID, or negative amount
     is_malformed = (
         col("parsed").isNull()
         | col("parsed.transaction_id").isNull()
         | (col("parsed.amount") <= 0.0)
     )
 
+    # Format for Kafka sink (requires key and value columns)
     dlq_df = parsed_df.filter(is_malformed).select(
-        expr("uuid()").alias("dlq_id"),
-        col("raw_payload"),
-        lit("Schema validation failed or negative amount").alias("error_reason"),
-        col("kafka_offset"),
-        current_timestamp().alias("quarantined_at"),
+        col("kafka_key").alias("key"),
+        to_json(
+            struct(
+                col("raw_payload"),
+                lit("Validation failed or negative amount").alias("error_reason"),
+                col("kafka_offset"),
+                col("kafka_partition"),
+                current_timestamp().alias("quarantined_at"),
+            )
+        ).alias("value"),
     )
 
     # 2. Valid Silver records
@@ -139,6 +145,7 @@ def process_silver_and_dlq(bronze_df: DataFrame) -> tuple[DataFrame, DataFrame]:
 def run_pipeline(once: bool = False):
     kafka_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
     raw_topic = os.getenv("KAFKA_RAW_TOPIC", "transactions.raw")
+    dlq_topic = os.getenv("KAFKA_DLQ_TOPIC", "transactions.dlq")
 
     logger.info(f"Initializing SparkSession (mode={'AvailableNow' if once else 'Continuous'})...")
     spark = get_spark_session("bronze-silver-streaming-job")
@@ -165,7 +172,7 @@ def run_pipeline(once: bool = False):
         .toTable("lakehouse.fraud_detection.bronze_transactions")
     )
 
-    # Query 2 & 3: Parse Silver and quarantine DLQ
+    # Query 2 & 3: Parse Silver and quarantine DLQ to Kafka
     silver_df, dlq_df = process_silver_and_dlq(bronze_df)
 
     logger.info("Starting Silver clean & deduplication stream...")
@@ -178,14 +185,15 @@ def run_pipeline(once: bool = False):
         .toTable("lakehouse.fraud_detection.silver_transactions")
     )
 
-    logger.info("Starting DLQ quarantine stream...")
+    logger.info(f"Starting DLQ stream -> Kafka topic '{dlq_topic}'...")
     dlq_query = (
-        dlq_df.writeStream.queryName("dlq_quarantine_stream")
-        .format("iceberg")
-        .outputMode("append")
+        dlq_df.writeStream.queryName("dlq_kafka_stream")
+        .format("kafka")
+        .option("kafka.bootstrap.servers", kafka_servers)
+        .option("topic", dlq_topic)
         .trigger(**trigger_args)
-        .option("checkpointLocation", "s3a://warehouse/checkpoints/quarantine_dlq/")
-        .toTable("lakehouse.fraud_detection.quarantine_dlq")
+        .option("checkpointLocation", "s3a://warehouse/checkpoints/dlq_kafka/")
+        .start()
     )
 
     active_queries = [bronze_query, silver_query, dlq_query]
