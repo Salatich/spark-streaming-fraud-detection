@@ -43,6 +43,9 @@ def get_spark_session(app_name: str = "spark-streaming-engine") -> SparkSession:
             "spark.sql.streaming.stateStore.providerClass",
             "org.apache.spark.sql.execution.streaming.state.HDFSBackedStateStoreProvider",
         )
+        # Tuning shuffle partitions for local streaming micro-batches
+        .config("spark.sql.shuffle.partitions", "4")
+        .config("spark.default.parallelism", "4")
     )
 
     return builder.getOrCreate()
