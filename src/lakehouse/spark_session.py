@@ -1,6 +1,7 @@
 """Spark session factory configured for Apache Iceberg, Kafka, and MinIO S3."""
 
 import os
+
 from pyspark.sql import SparkSession
 
 
